@@ -601,13 +601,9 @@ void bt_controller_log_interface(uint32_t len, const uint8_t *addr, bool end)
         for (int i = 0; i < len; i++) {
             ets_printf("%02x,", addr[i]);
         }
-        // ets_printf("\n");
+        ets_printf("\n");
     }
-    /*
-   for (int i = 0; i < len; i++) {
-            ets_printf("%02x,", addr[i]);
-    }*/
-} 
+}
 
 esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
 {

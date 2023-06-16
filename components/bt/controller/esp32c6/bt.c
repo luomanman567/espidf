@@ -110,7 +110,12 @@ struct ext_funcs_t {
  */
 extern int ble_osi_coex_funcs_register(struct osi_coex_funcs_t *coex_funcs);
 extern int ble_controller_init(esp_bt_controller_config_t *cfg);
+extern int ble_log_init_simple(void(*)(uint32_t, const uint8_t *));
+extern int ble_log_init_async(void(*)(uint32_t, const uint8_t *, bool), bool);
+extern int ble_log_async_init(void(*)(uint32_t, const uint8_t *, bool), bool);
+
 extern int ble_controller_deinit(void);
+extern int ble_log_deinit_simple(void);
 extern int ble_controller_enable(uint8_t mode);
 extern int ble_controller_disable(void);
 extern int esp_register_ext_funcs (struct ext_funcs_t *);
@@ -146,6 +151,7 @@ extern uint32_t _bt_controller_data_end;
 /* Local Function Declaration
  *********************************************************************
  */
+void bt_controller_log_interface(uint32_t len, const uint8_t *addr, bool);
 static void coex_schm_status_bit_set_wrapper(uint32_t type, uint32_t status);
 static void coex_schm_status_bit_clear_wrapper(uint32_t type, uint32_t status);
 static int task_create_wrapper(void *task_func, const char *name, uint32_t stack_depth,
@@ -583,11 +589,32 @@ void controller_sleep_deinit(void)
 #endif //CONFIG_PM_ENABLE
 }
 
+void bt_controller_log_interface(uint32_t len, const uint8_t *addr, bool end)
+{
+    
+    if(!end) {
+        for (int i = 0; i < len; i++) {
+            ets_printf("%02x,", addr[i]);
+        }
+    }
+    else {
+        for (int i = 0; i < len; i++) {
+            ets_printf("%02x,", addr[i]);
+        }
+        // ets_printf("\n");
+    }
+    /*
+   for (int i = 0; i < len; i++) {
+            ets_printf("%02x,", addr[i]);
+    }*/
+} 
+
 esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
 {
     uint8_t mac[6];
     esp_err_t ret = ESP_OK;
     ble_npl_count_info_t npl_info;
+    void (*fun)(uint32_t, const uint8_t *, bool);
 
     memset(&npl_info, 0, sizeof(ble_npl_count_info_t));
 
@@ -669,6 +696,15 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
         goto free_controller;
     }
 
+    fun = bt_controller_log_interface;
+    //ret = ble_log_init_simple(fun);
+    ret = ble_log_init_async(fun, true);
+    if (ret != ESP_OK) {
+        ESP_LOGW(NIMBLE_PORT_LOG_TAG, "ble_log_controller_init failed %d", ret);
+        //goto free_controller;
+    }
+
+
     ret = controller_sleep_init();
     if (ret != ESP_OK) {
         ESP_LOGW(NIMBLE_PORT_LOG_TAG, "controller_sleep_init failed %d", ret);
@@ -688,6 +724,7 @@ esp_err_t esp_bt_controller_init(esp_bt_controller_config_t *cfg)
 free_controller:
     controller_sleep_deinit();
     ble_controller_deinit();
+    ble_log_deinit_simple();
     esp_btbb_disable();
     esp_phy_disable();
     esp_phy_modem_deinit();
@@ -1219,4 +1256,5 @@ int ble_sm_alg_gen_key_pair(uint8_t *pub, uint8_t *priv)
 
     return 0;
 }
+
 #endif // (!CONFIG_BT_NIMBLE_ENABLED) && (CONFIG_BT_CONTROLLER_ENABLED == true)
